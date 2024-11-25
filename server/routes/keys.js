@@ -70,13 +70,22 @@ router.post('/', auth, async (req, res) => {
 // 获取Key列表
 router.get('/', auth, async (req, res) => {
   try {
-    console.log('Fetching keys...'); // 调试日志
     const keys = await Key.find().sort({ createdAt: -1 });
-    console.log('Found keys:', keys); // 调试日志
+    
+    // 计算统计数据
+    const total = keys.length;
+    const active = keys.filter(key => key.status === 'active').length;
+    
     res.json({ 
       success: true, 
-      data: keys,
-      count: keys.length
+      data: {
+        list: keys,
+        stats: {
+          total,
+          active,
+          inactive: total - active
+        }
+      }
     });
   } catch (error) {
     console.error('获取Key列表错误:', error);
@@ -128,7 +137,7 @@ router.post('/verify', async (req, res) => {
       });
     }
     
-    // 激活Key，并处理备注
+    // 激活Key，并处��备注
     keyDoc.status = 'active';
     keyDoc.activatedAt = new Date();
     
