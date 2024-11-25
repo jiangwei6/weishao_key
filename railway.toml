@@ -1,7 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "npm run build"
-watchPatterns = ["client/**/*", "server/**/*"]
+buildCommand = "npm run install && npm run client-install && npm run client-build"
 
 [deploy]
 startCommand = "npm start"
@@ -11,4 +10,5 @@ restartPolicy = "always"
 
 [deploy.envs]
 NODE_ENV = "production"
-CI = "false" 
+CI = "false"
+PORT = "5000"
