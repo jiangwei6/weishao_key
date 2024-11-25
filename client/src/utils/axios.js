@@ -6,6 +6,8 @@ const baseURL = process.env.NODE_ENV === 'production'
   ? window.location.origin  // 生产环境使用当前域名
   : 'http://localhost:5000'; // 开发环境使用本地地址
 
+console.log('API baseURL:', baseURL); // 添加调试日志
+
 const instance = axios.create({
   baseURL,
   timeout: 5000,
@@ -14,12 +16,13 @@ const instance = axios.create({
 // 请求拦截器
 instance.interceptors.request.use(
   (config) => {
+    // 添加详细的调试日志
     console.log('Request:', {
-      url: config.url,
+      url: `${config.baseURL}${config.url}`, // 完整URL
       method: config.method,
       data: config.data,
       headers: config.headers,
-      baseURL: config.baseURL  // 添加 baseURL 到日志
+      baseURL: config.baseURL
     });
 
     const token = localStorage.getItem('token');
@@ -42,7 +45,8 @@ instance.interceptors.response.use(
     console.log('Response:', {
       status: response.status,
       data: response.data,
-      headers: response.headers
+      headers: response.headers,
+      url: response.config.url // 添加请求的URL
     });
     return response;
   },
@@ -51,7 +55,8 @@ instance.interceptors.response.use(
       status: error.response?.status,
       data: error.response?.data,
       message: error.message,
-      config: error.config
+      config: error.config,
+      url: error.config?.url // 添加请求的URL
     });
 
     if (error.response?.status === 401) {
