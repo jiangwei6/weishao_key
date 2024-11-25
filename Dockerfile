@@ -11,13 +11,14 @@ COPY server/package*.json ./server/
 
 # 安装依赖
 RUN npm run install
+RUN cd client && npm install @babel/plugin-proposal-private-property-in-object
 RUN npm run client-install
 
 # 复制源代码
 COPY . .
 
 # 构建前端
-RUN npm run client-build
+RUN cd client && npm run build
 
 # 暴露端口
 EXPOSE 5000
