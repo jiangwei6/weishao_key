@@ -9,10 +9,11 @@ COPY package*.json ./
 COPY client/package*.json ./client/
 COPY server/package*.json ./server/
 
-# 安装依赖
-RUN npm run install
+# 安装后端依赖
+RUN cd server && npm install
+
+# 安装前端依赖
 RUN cd client && npm install --legacy-peer-deps
-RUN cd client && npm install @babel/plugin-proposal-private-property-in-object --legacy-peer-deps
 
 # 复制源代码
 COPY . .
@@ -20,9 +21,10 @@ COPY . .
 # 设置环境变量
 ENV CI=false
 ENV GENERATE_SOURCEMAP=false
+ENV DISABLE_ESLINT_PLUGIN=true
 
 # 构建前端
-RUN cd client && CI=false npm run build
+RUN cd client && DISABLE_ESLINT_PLUGIN=true CI=false npm run build
 
 # 暴露端口
 EXPOSE 5000
