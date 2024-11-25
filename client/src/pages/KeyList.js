@@ -137,15 +137,20 @@ const KeyList = () => {
       console.log('获取到的数据:', response.data);
       
       if (response.data.success) {
-        const keyData = response.data.data || [];
+        const keyData = response.data.data?.list || [];
         setKeys(keyData);
-        const total = keyData.length;
-        const active = keyData.filter(k => k.status === 'active').length;
-        setStats({
-          total,
-          active,
-          inactive: total - active
-        });
+        
+        if (response.data.data?.stats) {
+          setStats(response.data.data.stats);
+        } else {
+          const total = keyData.length;
+          const active = keyData.filter(k => k.status === 'active').length;
+          setStats({
+            total,
+            active,
+            inactive: total - active
+          });
+        }
       }
     } catch (error) {
       console.error('获取数据失败:', error);
@@ -261,7 +266,7 @@ const KeyList = () => {
 
   const visibleColumnsList = columns.filter(col => visibleColumns.includes(col.key));
 
-  const filteredKeys = keys.filter(key => {
+  const filteredKeys = Array.isArray(keys) ? keys.filter(key => {
     const noteMatch = !searchText || 
       (key.note && key.note.toLowerCase().includes(searchText.toLowerCase()));
 
@@ -270,7 +275,7 @@ const KeyList = () => {
     const statusMatch = !filters.status || key.status === filters.status;
 
     return noteMatch && durationMatch && statusMatch;
-  });
+  }) : [];
 
   return (
     <>
