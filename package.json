@@ -1,0 +1,13 @@
+{
+  "name": "key-management-system",
+  "version": "1.0.0",
+  "scripts": {
+    "install": "cd server && npm install",
+    "postinstall": "cd client && npm install",
+    "build": "cd client && CI=false npm run build",
+    "start": "cd server && npm start"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+} 
