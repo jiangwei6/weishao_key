@@ -4,7 +4,27 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
+// 设置默认环境变量
+if (!process.env.ADMIN_USERNAME) {
+  process.env.ADMIN_USERNAME = 'admin';
+}
+if (!process.env.ADMIN_PASSWORD) {
+  process.env.ADMIN_PASSWORD = 'admin123';
+}
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = 'weiShao_2024_key_System_Secret_!@';
+}
+
 const app = express();
+
+// 添加调试日志
+console.log('Environment variables:', {
+  NODE_ENV: process.env.NODE_ENV,
+  ADMIN_USERNAME: process.env.ADMIN_USERNAME,
+  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
+  JWT_SECRET: process.env.JWT_SECRET ? '已设置' : '未设置',
+  MONGODB_URI: process.env.MONGODB_URI ? '已设置' : '未设置'
+});
 
 // 中间件
 app.use(cors());
