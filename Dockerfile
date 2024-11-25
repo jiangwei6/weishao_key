@@ -11,14 +11,18 @@ COPY server/package*.json ./server/
 
 # 安装依赖
 RUN npm run install
-RUN cd client && npm install @babel/plugin-proposal-private-property-in-object
-RUN npm run client-install
+RUN cd client && npm install --legacy-peer-deps
+RUN cd client && npm install @babel/plugin-proposal-private-property-in-object --legacy-peer-deps
 
 # 复制源代码
 COPY . .
 
+# 设置环境变量
+ENV CI=false
+ENV GENERATE_SOURCEMAP=false
+
 # 构建前端
-RUN cd client && npm run build
+RUN cd client && CI=false npm run build
 
 # 暴露端口
 EXPOSE 5000
