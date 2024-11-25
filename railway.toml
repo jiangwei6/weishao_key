@@ -7,7 +7,7 @@ watchPatterns = ["client/**/*", "server/**/*"]
 startCommand = "npm start"
 healthcheckPath = "/"
 healthcheckTimeout = 100
-restartPolicyType = "on-failure"
+restartPolicy = "always"
 
 [deploy.envs]
 NODE_ENV = "production"
