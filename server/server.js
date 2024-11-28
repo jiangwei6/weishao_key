@@ -7,7 +7,6 @@ const User = require('./models/User');
 const Setting = require('./models/Setting');
 const jwt = require('jsonwebtoken');
 const logger = require('./utils/logger');
-const compression = require('compression');
 
 // 设置默认环境变量
 if (!process.env.ADMIN_USERNAME) {
@@ -31,7 +30,6 @@ console.log('Server started with MongoDB URI:', process.env.MONGODB_URI ? '已�
 // 中间件
 app.use(cors());
 app.use(express.json());
-app.use(compression());
 
 // API 路由
 app.use('/api/auth', require('./routes/auth'));
