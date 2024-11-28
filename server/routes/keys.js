@@ -164,6 +164,24 @@ router.get('/durations', auth, async (req, res) => {
 // 验证Key接口
 router.post('/verify', async (req, res) => {
   try {
+    // 检查 Authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: '缺少 Authorization Token'
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: '无效的 Token 格式'
+      });
+    }
+
+    // 验证 token 并获取用户设置
     const { key, note } = req.body;
     
     // 查找key并检查其所属用户的API设置
@@ -180,6 +198,14 @@ router.post('/verify', async (req, res) => {
       key: 'apiSettings',
       userId: keyDoc.userId
     });
+
+    // 验证 token 是否匹配
+    if (!apiSettings?.value?.token || apiSettings.value.token !== token) {
+      return res.status(401).json({
+        success: false,
+        message: '无效的 Token'
+      });
+    }
 
     // 检查API是否启用
     if (apiSettings?.value?.enabled === false) {
@@ -212,7 +238,6 @@ router.post('/verify', async (req, res) => {
       data: {
         duration: keyDoc.duration,
         activatedAt: keyDoc.activatedAt,
-        expireAt: new Date(now.getTime() + keyDoc.duration * 24 * 60 * 60 * 1000),
         note: keyDoc.note
       }
     });
