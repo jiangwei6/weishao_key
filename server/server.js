@@ -28,7 +28,12 @@ const app = express();
 console.log('Server started with MongoDB URI:', process.env.MONGODB_URI ? '已设置' : '未设置');
 
 // 中间件
-app.use(cors());
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? 'https://weishaokey.up.railway.app'  // 修改为你的域名
+    : 'http://localhost:3000',
+  credentials: true
+}));
 app.use(express.json());
 
 // API 路由

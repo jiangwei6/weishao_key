@@ -2,7 +2,7 @@ import axios from 'axios';
 import { message } from 'antd';
 
 const baseURL = process.env.NODE_ENV === 'production' 
-  ? window.location.origin
+  ? 'https://weishaokey.up.railway.app'
   : 'http://localhost:5000';
 
 const instance = axios.create({

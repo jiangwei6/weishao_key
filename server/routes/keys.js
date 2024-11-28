@@ -81,7 +81,7 @@ router.get('/', auth, async (req, res) => {
     if (status) query.status = status;
     if (duration) query.duration = parseInt(duration);
 
-    // 使用 lean() 提高性能
+    // 移除 cache 方法，因为它可能导致问题
     const [data] = await Key.aggregate([
       { $match: query },
       {
@@ -91,7 +91,6 @@ router.get('/', auth, async (req, res) => {
             { $skip: (parseInt(page) - 1) * parseInt(limit) },
             { $limit: parseInt(limit) },
             { 
-              // 只选择需要的字段
               $project: {
                 key: 1,
                 duration: 1,
@@ -117,9 +116,9 @@ router.get('/', auth, async (req, res) => {
           ]
         }
       }
-    ]).cache(300); // 添加5分钟缓存
+    ]);
 
-    const { paginatedData, stats } = data;
+    const { paginatedData, stats } = data || { paginatedData: [], stats: [] };
     const statsData = stats[0] || { total: 0, active: 0, inactive: 0 };
 
     // 添加缓存控制头
@@ -138,6 +137,7 @@ router.get('/', auth, async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('获取Key列表错误:', error); // 添加错误日志
     res.status(500).json({
       success: false,
       message: '获取Key列表失败'
