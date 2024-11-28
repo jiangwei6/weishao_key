@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Layout, Menu, Popconfirm, Button } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Layout, Menu, Popconfirm, Button, Tooltip, Divider } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   PlusOutlined,
@@ -8,8 +8,12 @@ import {
   LogoutOutlined,
   ApiOutlined,
   MenuFoldOutlined,
-  MenuUnfoldOutlined
+  MenuUnfoldOutlined,
+  TeamOutlined,
+  UserOutlined
 } from '@ant-design/icons';
+import { useLanguage } from '../contexts/LanguageContext';
+import { messages } from '../locales';
 
 const { Header, Sider, Content } = Layout;
 
@@ -17,6 +21,16 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+  const [username, setUsername] = useState('');
+  const { lang } = useLanguage();
+  const t = messages[lang];
+
+  useEffect(() => {
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    setUserRole(userInfo.role);
+    setUsername(userInfo.username);
+  }, []);
 
   const handleMenuClick = (key) => {
     if (key === 'logout') {
@@ -34,24 +48,39 @@ const Dashboard = () => {
     {
       key: '/keys/generate',
       icon: <PlusOutlined />,
-      label: '生成Key',
+      label: t.menu.generateKey,
     },
     {
       key: '/keys/list',
       icon: <UnorderedListOutlined />,
-      label: 'Key列表',
+      label: t.menu.keyList,
     },
     {
       key: '/api',
       icon: <ApiOutlined />,
-      label: 'API文档',
+      label: t.menu.apiDocs,
     },
     {
       key: '/settings',
       icon: <SettingOutlined />,
-      label: '设置',
+      label: t.menu.settings,
     },
-  ];
+    userRole === 'admin' && {
+      key: '/users',
+      icon: <TeamOutlined />,
+      label: t.menu.userManagement,
+    }
+  ].filter(Boolean);
+
+  const getPageTitle = () => {
+    const path = location.pathname;
+    if (path.includes('/keys/generate')) return t.menu.generateKey;
+    if (path.includes('/keys/list')) return t.menu.keyList;
+    if (path.includes('/api')) return t.menu.apiDocs;
+    if (path.includes('/settings')) return t.menu.settings;
+    if (path.includes('/users')) return t.menu.userManagement;
+    return '';
+  };
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -81,7 +110,7 @@ const Dashboard = () => {
             overflow: 'hidden'
           }}
         >
-          {collapsed ? 'WS' : '威少激活'}
+          {collapsed ? 'WS' : t.login.title}
         </div>
         <Menu
           theme="dark"
@@ -104,27 +133,40 @@ const Dashboard = () => {
           background: '#131416'
         }}>
           <Popconfirm
-            title="确认退出登录？"
+            title={t.common.logout.confirm}
             onConfirm={handleLogout}
-            okText="确认"
-            cancelText="取消"
+            okText={t.common.logout.confirmButton}
+            cancelText={t.common.logout.cancelButton}
             placement="topRight"
           >
-            <Button 
-              type="text" 
+            <div 
               style={{ 
-                color: 'rgba(255,255,255,0.45)',
-                width: '100%',
-                height: '50px',
-                paddingLeft: '24px',
+                padding: '12px 24px',
+                cursor: 'pointer',
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'flex-start'
+                flexDirection: 'column',
+                gap: '8px'
               }}
             >
-              <LogoutOutlined style={{ fontSize: '16px' }} />
-              {!collapsed && <span style={{ marginLeft: '10px' }}>退出登录</span>}
-            </Button>
+              {!collapsed && (
+                <div style={{
+                  color: 'rgba(255,255,255,0.85)',
+                  fontSize: '14px',
+                  textAlign: 'left'
+                }}>
+                  {username}
+                </div>
+              )}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                color: 'rgba(255,255,255,0.45)',
+                textAlign: 'left'
+              }}>
+                {!collapsed && <span style={{ marginRight: '10px' }}>{t.common.logout.title}</span>}
+                <LogoutOutlined style={{ fontSize: '16px' }} />
+              </div>
+            </div>
           </Popconfirm>
         </div>
       </Sider>
@@ -133,23 +175,56 @@ const Dashboard = () => {
           padding: '0 16px', 
           background: '#fff',
           display: 'flex',
-          alignItems: 'center'
+          alignItems: 'center',
+          justifyContent: 'space-between'
         }}>
-          <Button
-            type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
-            style={{
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <Button
+              type="text"
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => setCollapsed(!collapsed)}
+              style={{
+                fontSize: '16px',
+                width: 64,
+                height: 64,
+              }}
+            />
+            <span style={{ 
               fontSize: '16px',
-              width: 64,
-              height: 64,
-            }}
-          />
+              marginLeft: '16px',
+              fontWeight: 500
+            }}>
+              {getPageTitle()}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <Divider type="vertical" style={{ height: 24 }} />
+            <Tooltip 
+              title={
+                <div>
+                  {t.common.contact.contactPerson}<br/>
+                  {t.common.contact.wechat}
+                </div>
+              }
+              placement="bottomRight"
+            >
+              <Button
+                type="text"
+                icon={<UserOutlined />}
+                style={{
+                  fontSize: '16px',
+                  height: 64,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                {t.common.contact.title}
+              </Button>
+            </Tooltip>
+          </div>
         </Header>
         <Content style={{ margin: '24px 16px 0' }}>
-          <div style={{ padding: 24, minHeight: 360, background: '#fff' }}>
-            <Outlet />
-          </div>
+          <Outlet />
         </Content>
       </Layout>
     </Layout>

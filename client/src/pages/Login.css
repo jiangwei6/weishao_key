@@ -1,8 +1,8 @@
 .login-container {
-  height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
+  min-height: 100vh;
   background: #f0f2f5;
 }
 
@@ -12,7 +12,14 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.login-card .ant-card-head-title {
+.ant-card-head-title {
   text-align: center;
   font-size: 24px;
+  font-weight: bold;
+}
+
+.language-switch {
+  position: absolute;
+  top: 24px;
+  right: 24px;
 } 

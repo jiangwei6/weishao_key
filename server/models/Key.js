@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
 const keySchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
   key: {
     type: String,
     required: true,
@@ -30,5 +35,8 @@ const keySchema = new mongoose.Schema({
     type: Date
   }
 });
+
+keySchema.index({ userId: 1, status: 1 });
+keySchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Key', keySchema); 

@@ -3,17 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@ant-design/icons": "^5.0.0",
-    "antd": "^5.0.0",
-    "axios": "^1.0.0",
+    "@ant-design/icons": "^5.5.1",
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
+    "antd": "^5.22.2",
+    "axios": "^1.7.8",
+    "file-saver": "^2.0.5",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.0.0",
+    "react-router-dom": "^6.28.0",
     "react-scripts": "5.0.1",
-    "file-saver": "^2.0.5",
-    "xlsx": "^0.18.5",
-    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0",
+    "eslint-config-react-app": "^7.0.0"
   },
   "scripts": {
     "start": "react-scripts start",

@@ -1,30 +1,21 @@
 import axios from 'axios';
 import { message } from 'antd';
 
-// 获取当前域名作为 baseURL
 const baseURL = process.env.NODE_ENV === 'production' 
-  ? window.location.origin  // 生产环境使用当前域名
-  : 'http://localhost:5000'; // 开发环境使用本地地址
-
-console.log('API baseURL:', baseURL); // 添加调试日志
+  ? window.location.origin
+  : 'http://localhost:5000';
 
 const instance = axios.create({
   baseURL,
-  timeout: 5000,
+  timeout: 10000,
+  headers: {
+    'Cache-Control': 'no-cache'
+  }
 });
 
-// 请求拦截器
+// 简化请求拦截器
 instance.interceptors.request.use(
   (config) => {
-    // 添加详细的调试日志
-    console.log('Request:', {
-      url: `${config.baseURL}${config.url}`, // 完整URL
-      method: config.method,
-      data: config.data,
-      headers: config.headers,
-      baseURL: config.baseURL
-    });
-
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = token.startsWith('Bearer ')
@@ -33,36 +24,37 @@ instance.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    console.error('Request Error:', error);
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// 响应拦截器
+// 简化响应拦截器
 instance.interceptors.response.use(
   (response) => {
-    console.log('Response:', {
-      status: response.status,
-      data: response.data,
-      headers: response.headers,
-      url: response.config.url // 添加请求的URL
-    });
+    if (response.data && response.data.success === false) {
+      message.error(response.data.message || '操作失败');
+      return Promise.reject(new Error(response.data.message));
+    }
     return response;
   },
-  (error) => {
-    console.error('Response Error:', {
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.message,
-      config: error.config,
-      url: error.config?.url // 添加请求的URL
-    });
-
+  async (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
+      localStorage.removeItem('userInfo');
       window.location.href = '/login';
+      return Promise.reject(error);
     }
+
+    if (error.config && error.config.retries > 0 && error.response?.status !== 401 && error.response?.status !== 403) {
+      error.config.retries--;
+      
+      const delayRetry = new Promise(resolve => {
+        setTimeout(resolve, error.config.retryDelay || 1000);
+      });
+
+      await delayRetry;
+      return instance(error.config);
+    }
+
     message.error(error.response?.data?.message || '请求失败');
     return Promise.reject(error);
   }

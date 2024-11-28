@@ -11,12 +11,17 @@ const generateKey = (seed, index) => {
   return crypto.createHash('sha256').update(data).digest('hex').substring(0, 32);
 };
 
+// 生成新Key
 router.post('/', auth, async (req, res) => {
   try {
     const { quantity = 1, duration = 30, note = '' } = req.body;
     
-    // 获取设置中的种子值
-    const keySettings = await Setting.findOne({ key: 'keySettings' });
+    // 获取用户的设置
+    const keySettings = await Setting.findOne({ 
+      key: 'keySettings',
+      userId: req.user._id 
+    });
+    
     if (!keySettings) {
       return res.status(400).json({ 
         success: false, 
@@ -39,10 +44,10 @@ router.post('/', auth, async (req, res) => {
     
     for (let i = 0; i < keyCount; i++) {
       const keyString = generateKey(seed, i);
-      // 如果有前缀就添加前缀，没有就直接使用生成的key
       const finalKey = prefix ? `${prefix}_${keyString}` : keyString;
       
       keys.push({
+        userId: req.user._id, // 添加用户ID
         key: finalKey,
         duration: parseInt(duration),
         quantity: 1,
@@ -51,7 +56,6 @@ router.post('/', auth, async (req, res) => {
       });
     }
     
-    console.log('Generating keys with settings:', { seed, prefix }); // 调试日志
     const savedKeys = await Key.insertMany(keys);
     res.json({ 
       success: true, 
@@ -67,31 +71,155 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// 获取Key列表
+// 获取Key列表 - 优化查询性能
 router.get('/', auth, async (req, res) => {
   try {
-    const keys = await Key.find().sort({ createdAt: -1 });
+    const { page = 1, limit = 10, status, duration } = req.query;
     
-    // 计算统计数据
-    const total = keys.length;
-    const active = keys.filter(key => key.status === 'active').length;
-    
-    res.json({ 
-      success: true, 
+    // 构建查询条件
+    const query = { userId: req.user._id };
+    if (status) query.status = status;
+    if (duration) query.duration = parseInt(duration);
+
+    // 使用 lean() 提高性能
+    const [data] = await Key.aggregate([
+      { $match: query },
+      {
+        $facet: {
+          paginatedData: [
+            { $sort: { createdAt: -1 } },
+            { $skip: (parseInt(page) - 1) * parseInt(limit) },
+            { $limit: parseInt(limit) },
+            { 
+              // 只选择需要的字段
+              $project: {
+                key: 1,
+                duration: 1,
+                status: 1,
+                note: 1,
+                createdAt: 1
+              }
+            }
+          ],
+          stats: [
+            {
+              $group: {
+                _id: null,
+                total: { $sum: 1 },
+                active: {
+                  $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] }
+                },
+                inactive: {
+                  $sum: { $cond: [{ $eq: ['$status', 'inactive'] }, 1, 0] }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]).cache(300); // 添加5分钟缓存
+
+    const { paginatedData, stats } = data;
+    const statsData = stats[0] || { total: 0, active: 0, inactive: 0 };
+
+    // 添加缓存控制头
+    res.set('Cache-Control', 'private, max-age=300'); // 5分钟客户端缓存
+
+    res.json({
+      success: true,
       data: {
-        list: keys,
-        stats: {
-          total,
-          active,
-          inactive: total - active
+        list: paginatedData,
+        stats: statsData,
+        pagination: {
+          total: status || duration ? paginatedData.length : statsData.total,
+          page: parseInt(page),
+          limit: parseInt(limit)
         }
       }
     });
   } catch (error) {
-    console.error('获取Key列表错误:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: error.message || '获取Key列表失败' 
+    res.status(500).json({
+      success: false,
+      message: '获取Key列表失败'
+    });
+  }
+});
+
+// 获取所有可用的有效期选项 - 移到验证接口之前
+router.get('/durations', auth, async (req, res) => {
+  try {
+    const durations = await Key.distinct('duration', { userId: req.user._id });
+    res.json({
+      success: true,
+      data: durations.sort((a, b) => a - b)
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: '获取有效期选项失败'
+    });
+  }
+});
+
+// 验证Key接口
+router.post('/verify', async (req, res) => {
+  try {
+    const { key, note } = req.body;
+    
+    // 查找key并检查其所属用户的API设置
+    const keyDoc = await Key.findOne({ key }).populate('userId');
+    if (!keyDoc) {
+      return res.status(404).json({
+        success: false,
+        message: 'Key不存在'
+      });
+    }
+
+    // 获取用户的API设置
+    const apiSettings = await Setting.findOne({ 
+      key: 'apiSettings',
+      userId: keyDoc.userId
+    });
+
+    // 检查API是否启用
+    if (apiSettings?.value?.enabled === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'API已禁用'
+      });
+    }
+
+    if (keyDoc.status === 'active') {
+      return res.status(400).json({
+        success: false,
+        message: 'Key已被使用'
+      });
+    }
+
+    // 激活Key
+    const now = new Date();
+    keyDoc.status = 'active';
+    keyDoc.activatedAt = now;
+    keyDoc.note = note ? 
+      `[${new Date().toLocaleString()}] ${note}` : 
+      `[${new Date().toLocaleString()}] 已激活`;
+    
+    await keyDoc.save();
+
+    res.json({
+      success: true,
+      message: '验证成功',
+      data: {
+        duration: keyDoc.duration,
+        activatedAt: keyDoc.activatedAt,
+        expireAt: new Date(now.getTime() + keyDoc.duration * 24 * 60 * 60 * 1000),
+        note: keyDoc.note
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message || '验证失败'
     });
   }
 });
@@ -99,74 +227,27 @@ router.get('/', auth, async (req, res) => {
 // 删除Key
 router.delete('/:id', auth, async (req, res) => {
   try {
-    await Key.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
+    const key = await Key.findOne({ 
+      _id: req.params.id,
+      userId: req.user._id // 确保只能删除自己的Key
+    });
 
-// 验证Key API
-router.post('/verify', async (req, res) => {
-  try {
-    // 检查API是否启用
-    const settings = await Setting.findOne({ key: 'apiSettings' });
-    if (settings && !settings.value.enabled) {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'API服务已禁用' 
+    if (!key) {
+      return res.status(404).json({
+        success: false,
+        message: 'Key不存在'
       });
     }
 
-    const { key, note } = req.body;  // 添加 note 参数
-    const keyDoc = await Key.findOne({ key });
-    
-    if (!keyDoc) {
-      return res.json({ 
-        success: false, 
-        message: 'Key不存在',
-        data: null
-      });
-    }
-    
-    if (keyDoc.status === 'active') {
-      return res.json({ 
-        success: false, 
-        message: 'Key已被使用',
-        data: null
-      });
-    }
-    
-    // 激活Key，并处��备注
-    keyDoc.status = 'active';
-    keyDoc.activatedAt = new Date();
-    
-    // 如果有新备注，追加到现有备注后面
-    if (note) {
-      const existingNote = keyDoc.note || '';
-      keyDoc.note = existingNote 
-        ? `${existingNote}\n[${new Date().toLocaleString()}] ${note}`
-        : `[${new Date().toLocaleString()}] ${note}`;
-    }
-    
-    await keyDoc.save();
-    
-    // 返回更详细的信息
-    res.json({ 
-      success: true, 
-      message: '验证成功',
-      data: {
-        duration: keyDoc.duration,  // 有效期天数
-        activatedAt: keyDoc.activatedAt,  // 激活时间
-        expireAt: new Date(keyDoc.activatedAt.getTime() + (keyDoc.duration * 24 * 60 * 60 * 1000)), // 过期时间
-        note: keyDoc.note || ''  // 包含新增的备注
-      }
+    await key.remove();
+    res.json({
+      success: true,
+      message: '删除成功'
     });
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      message: error.message,
-      data: null
+    res.status(500).json({
+      success: false,
+      message: error.message || '删除失败'
     });
   }
 });

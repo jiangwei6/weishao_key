@@ -1,75 +1,129 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 const auth = require('../middleware/auth');
 
-router.post('/login', (req, res) => {
-  const { username, password } = req.body;
-  
-  console.log('Login attempt:', { 
-    username, 
-    password,
-    expectedUsername: process.env.ADMIN_USERNAME,
-    expectedPassword: process.env.ADMIN_PASSWORD,
-    envVars: {
-      NODE_ENV: process.env.NODE_ENV,
-      JWT_SECRET: process.env.JWT_SECRET ? '已设置' : '未设置',
-      MONGODB_URI: process.env.MONGODB_URI ? '已设置' : '未设置'
+const MAX_LOGIN_ATTEMPTS = 3;
+const LOCK_TIME = 24 * 60 * 60 * 1000; // 24小时
+
+router.post('/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    console.log('Login attempt:', { username, password }); // 添加调试日志
+
+    const user = await User.findOne({ username });
+    console.log('Found user:', user); // 添加调试日志
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: '用户名或密码错误'
+      });
     }
-  });
-  
-  if (!process.env.ADMIN_USERNAME || !process.env.ADMIN_PASSWORD) {
-    console.error('环境变量未正确加载');
-    return res.status(500).json({ 
-      success: false, 
-      message: '系统配置错误',
-      debug: {
-        adminUsername: !!process.env.ADMIN_USERNAME,
-        adminPassword: !!process.env.ADMIN_PASSWORD
+
+    // 检查是否是 guest 账户
+    if (user.role === 'guest' && user.username === 'guest' && password === 'guest23') {
+      // guest 账户使用特殊处理
+      const token = jwt.sign(
+        { userId: user._id, role: user.role },
+        process.env.JWT_SECRET
+      );
+
+      return res.json({
+        success: true,
+        token,
+        user: {
+          username: user.username,
+          role: user.role
+        }
+      });
+    }
+
+    // 检查账户是否锁定
+    if (user.isLocked) {
+      if (user.lockUntil && user.lockUntil < Date.now()) {
+        // 锁定时间已过，重置状态
+        user.isLocked = false;
+        user.loginAttempts = 0;
+        await user.save();
+      } else {
+        return res.status(403).json({
+          success: false,
+          message: '账户已锁定，请联系管理员'
+        });
+      }
+    }
+
+    // 验证密码
+    if (password !== user.password) {
+      user.loginAttempts += 1;
+      console.log('Login attempts:', user.loginAttempts); // 添加调试日志
+      
+      if (user.loginAttempts >= MAX_LOGIN_ATTEMPTS) {
+        user.isLocked = true;
+        user.lockUntil = new Date(Date.now() + LOCK_TIME);
+        await user.save();
+        return res.status(401).json({
+          success: false,
+          message: '密码错误次数过多，账户已锁定'
+        });
+      }
+      
+      await user.save();
+      return res.status(401).json({
+        success: false,
+        message: `密码错误，还剩${MAX_LOGIN_ATTEMPTS - user.loginAttempts}次机会`
+      });
+    }
+
+    // 登录成功，重置登录尝试次数
+    user.loginAttempts = 0;
+    await user.save();
+
+    const token = jwt.sign(
+      { userId: user._id, role: user.role },
+      process.env.JWT_SECRET
+    );
+
+    res.json({ 
+      success: true, 
+      token,
+      user: {
+        username: user.username,
+        role: user.role
       }
     });
-  }
-
-  if (username === process.env.ADMIN_USERNAME && 
-      password === process.env.ADMIN_PASSWORD) {
-    console.log('登录验证成功');
-    const token = jwt.sign(
-      { username },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-    res.json({ success: true, token });
-  } else {
-    console.log('登录验证失败');
-    res.status(401).json({ 
-      success: false, 
-      message: '用户名或密码错误',
-      debug: process.env.NODE_ENV === 'development' ? {
-        provided: { username, password },
-        expected: { 
-          username: process.env.ADMIN_USERNAME,
-          password: process.env.ADMIN_PASSWORD
-        }
-      } : undefined
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: '登录失败'
     });
   }
 });
 
-// 添加修改密码路由
+// 修改密码接口
 router.put('/change-password', auth, async (req, res) => {
   try {
+    // 检查是否是guest用户
+    if (req.user.role === 'guest') {
+      return res.status(403).json({
+        success: false,
+        message: 'Guest账户不能修改密码'
+      });
+    }
+
     const { oldPassword, newPassword } = req.body;
     
-    // 验证旧密码
-    if (oldPassword !== process.env.ADMIN_PASSWORD) {
+    if (oldPassword !== req.user.password) {
       return res.status(400).json({
         success: false,
         message: '原密码错误'
       });
     }
 
-    // 更新环境变量中的密码
-    process.env.ADMIN_PASSWORD = newPassword;
+    req.user.password = newPassword;
+    await req.user.save();
 
     res.json({
       success: true,

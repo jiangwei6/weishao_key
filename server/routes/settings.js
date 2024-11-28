@@ -2,45 +2,75 @@ const express = require('express');
 const router = express.Router();
 const Setting = require('../models/Setting');
 const auth = require('../middleware/auth');
+const jwt = require('jsonwebtoken');
 
 // 获取设置
 router.get('/', auth, async (req, res) => {
   try {
-    // 获取所有设置
-    let [apiSettings, keySettings] = await Promise.all([
-      Setting.findOne({ key: 'apiSettings' }),
-      Setting.findOne({ key: 'keySettings' })
-    ]);
+    // 使用一次查询获取所有设置
+    const settings = await Setting.find({ 
+      userId: req.user._id,
+      key: { $in: ['apiSettings', 'keySettings'] }
+    }).lean(); // 使用 lean() 提高性能
 
+    // 转换为对象格式
+    const settingsMap = settings.reduce((acc, setting) => {
+      acc[setting.key] = setting.value;
+      return acc;
+    }, {});
+
+    // 如果设置不存在，使用默认值
     const defaultSettings = Setting.getDefaultSettings();
+    const response = {
+      apiSettings: settingsMap.apiSettings || defaultSettings.apiSettings,
+      keySettings: settingsMap.keySettings || defaultSettings.keySettings
+    };
 
-    // 如果 apiSettings 不存在，创建默认值
-    if (!apiSettings) {
-      apiSettings = await Setting.create({
-        key: 'apiSettings',
-        value: defaultSettings.apiSettings
-      });
-    }
+    // 添加缓存控制
+    res.set('Cache-Control', 'private, max-age=300'); // 5分钟缓存
 
-    // 如果 keySettings 不存在，创建默认值
-    if (!keySettings) {
-      keySettings = await Setting.create({
-        key: 'keySettings',
-        value: defaultSettings.keySettings
-      });
-    }
-
-    // 返回合并后的设置
-    res.json({ 
-      success: true, 
-      data: {
-        apiSettings: apiSettings.value,
-        keySettings: keySettings.value
-      }
+    res.json({
+      success: true,
+      data: response
     });
   } catch (error) {
     console.error('获取设置错误:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message || '获取设置失败'
+    });
+  }
+});
+
+// 生成新的 API token
+router.post('/generate-token', auth, async (req, res) => {
+  try {
+    const token = jwt.sign(
+      { userId: req.user._id, role: req.user.role },
+      process.env.JWT_SECRET
+    );
+
+    const apiSettings = await Setting.findOneAndUpdate(
+      { userId: req.user._id, key: 'apiSettings' },
+      { 
+        $set: { 
+          'value.token': token,
+          'value.enabled': true
+        }
+      },
+      { upsert: true, new: true }
+    );
+
+    res.json({
+      success: true,
+      token: apiSettings.value.token
+    });
+  } catch (error) {
+    console.error('生成token错误:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || '生成token失败'
+    });
   }
 });
 
@@ -54,8 +84,15 @@ router.put('/', auth, async (req, res) => {
     if (apiSettings !== undefined) {
       updates.push(
         Setting.findOneAndUpdate(
-          { key: 'apiSettings' },
-          { value: apiSettings },
+          { 
+            key: 'apiSettings',
+            userId: req.user._id 
+          },
+          { 
+            key: 'apiSettings',
+            userId: req.user._id,
+            value: apiSettings 
+          },
           { upsert: true, new: true }
         )
       );
@@ -72,8 +109,13 @@ router.put('/', auth, async (req, res) => {
 
       updates.push(
         Setting.findOneAndUpdate(
-          { key: 'keySettings' },
           { 
+            key: 'keySettings',
+            userId: req.user._id 
+          },
+          { 
+            key: 'keySettings',
+            userId: req.user._id,
             value: {
               seed: keySettings.seed,
               prefix: keySettings.prefix || ''
@@ -84,10 +126,8 @@ router.put('/', auth, async (req, res) => {
       );
     }
 
-    // 执行所有更新
     const [updatedApiSettings, updatedKeySettings] = await Promise.all(updates);
 
-    // 返回更新后的设置
     res.json({ 
       success: true,
       message: '设置已保存',

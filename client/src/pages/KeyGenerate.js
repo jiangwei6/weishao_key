@@ -1,190 +1,236 @@
 import React, { useState } from 'react';
-import { Form, InputNumber, Input, Button, Card, message, Radio, Space, Row, Col } from 'antd';
+import { 
+  Form, Button, Radio, Input, message, InputNumber, 
+  Space
+} from 'antd';
+import { 
+  CalendarOutlined, 
+  NumberOutlined,
+  FileTextOutlined,
+  RocketOutlined
+} from '@ant-design/icons';
 import axios from '../utils/axios';
-
-const { TextArea } = Input;
+import { useLanguage } from '../contexts/LanguageContext';
+import { messages } from '../locales';
 
 const KeyGenerate = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const { lang } = useLanguage();
+  const t = messages[lang].generateKey;
 
-  const quantityOptions = [1, 5, 10, 20, 50, 100];
-  const durationOptions = [1, 30, 90, 365];
-
-  const onFinish = async (values) => {
-    setLoading(true);
+  const handleSubmit = async (values) => {
     try {
-      const quantity = values.quantity || 1;
-      const duration = values.duration || 30;
-      const note = values.note || '';
-
-      const response = await axios.post('/api/keys', {
-        quantity,
-        duration,
-        note
-      });
-
+      setLoading(true);
+      const response = await axios.post('/api/keys', values);
       if (response.data.success) {
-        message.success('Key生成成功');
+        message.success(t.success);
         form.resetFields();
       }
     } catch (error) {
-      console.error('生成失败:', error);
-      message.error(error.response?.data?.message || 'Key生成失败');
+      message.error(error.response?.data?.message || t.failed);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  };
-
-  const handleQuantityChange = (e) => {
-    const value = e.target.value;
-    form.setFieldsValue({ quantity: value });
-  };
-
-  const handleQuantityInputChange = (value) => {
-    form.setFieldsValue({ quantityRadio: null });
   };
 
   const handleDurationChange = (e) => {
-    const value = e.target.value;
-    form.setFieldsValue({ duration: value });
+    form.setFieldValue('customDuration', e.target.value);
   };
 
-  const handleDurationInputChange = (value) => {
-    form.setFieldsValue({ durationRadio: null });
+  const handleQuantityChange = (e) => {
+    form.setFieldValue('customQuantity', e.target.value);
   };
 
   return (
-    <Card title="生成Key">
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={onFinish}
-        initialValues={{
-          quantity: 1,
-          quantityRadio: 1,
-          duration: 30,
-          durationRadio: 30,
-        }}
+    <Form
+      form={form}
+      onFinish={handleSubmit}
+      layout="vertical"
+      initialValues={{
+        duration: 30,
+        quantity: 1,
+        customDuration: 30,
+        customQuantity: 1
+      }}
+      style={{
+        background: 'linear-gradient(180deg, rgba(44, 229, 123, 0.05) 0%, rgba(255, 255, 255, 1) 25%)',
+        padding: '32px',
+        borderRadius: '12px',
+        minHeight: 'calc(100vh - 184px)'
+      }}
+    >
+      <Form.Item 
+        label={
+          <Space>
+            <CalendarOutlined style={{ color: '#2CE57B' }} />
+            <span style={{ fontSize: '16px' }}>时间标记</span>
+          </Space>
+        }
       >
-        <Form.Item label="数量" required>
-          <Row gutter={[16, 16]}>
-            <Col xs={24} sm={24} md={16}>
-              <Form.Item
-                name="quantityRadio"
-                noStyle
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <Form.Item name="duration" noStyle>
+            <Radio.Group 
+              onChange={handleDurationChange}
+              buttonStyle="solid"
+              size="large"
+              style={{ 
+                display: 'flex', 
+                flexWrap: 'wrap', 
+                gap: '12px'
+              }}
+            >
+              <Radio.Button 
+                value={30}
+                style={{ 
+                  height: '48px', 
+                  lineHeight: '48px',
+                  padding: '0 24px',
+                  fontSize: '16px'
+                }}
               >
-                <Radio.Group 
-                  buttonStyle="solid" 
-                  onChange={handleQuantityChange}
-                  style={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: '8px' }}
+                30天
+              </Radio.Button>
+              <Radio.Button 
+                value={90}
+                style={{ 
+                  height: '48px', 
+                  lineHeight: '48px',
+                  padding: '0 24px',
+                  fontSize: '16px'
+                }}
+              >
+                90天
+              </Radio.Button>
+              <Radio.Button 
+                value={365}
+                style={{ 
+                  height: '48px', 
+                  lineHeight: '48px',
+                  padding: '0 24px',
+                  fontSize: '16px'
+                }}
+              >
+                365天
+              </Radio.Button>
+            </Radio.Group>
+          </Form.Item>
+          <Form.Item name="customDuration" noStyle>
+            <InputNumber
+              min={1}
+              max={3650}
+              style={{ 
+                width: 200,
+                height: '48px',
+                fontSize: '16px'
+              }}
+              addonAfter="天"
+              onChange={(value) => form.setFieldValue('duration', value)}
+              placeholder="自定义天数"
+            />
+          </Form.Item>
+        </Space>
+      </Form.Item>
+
+      <Form.Item
+        label={
+          <Space>
+            <NumberOutlined style={{ color: '#2CE57B' }} />
+            <span style={{ fontSize: '16px' }}>生成数量</span>
+          </Space>
+        }
+      >
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <Form.Item name="quantity" noStyle>
+            <Radio.Group 
+              onChange={handleQuantityChange}
+              buttonStyle="solid"
+              size="large"
+              style={{ 
+                display: 'flex', 
+                flexWrap: 'wrap', 
+                gap: '12px'
+              }}
+            >
+              {[1, 5, 10, 20, 50].map(num => (
+                <Radio.Button 
+                  key={num}
+                  value={num}
+                  style={{ 
+                    height: '48px', 
+                    lineHeight: '48px',
+                    padding: '0 24px',
+                    fontSize: '16px'
+                  }}
                 >
-                  {quantityOptions.map(num => (
-                    <Radio.Button 
-                      key={num} 
-                      value={num}
-                      style={{ 
-                        minWidth: '60px', 
-                        textAlign: 'center',
-                        marginRight: 0,
-                        flexGrow: 1,
-                        flexBasis: 'calc(33.333% - 8px)'  // 每行3个按钮
-                      }}
-                    >
-                      {num}
-                    </Radio.Button>
-                  ))}
-                </Radio.Group>
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={24} md={8}>
-              <Form.Item
-                name="quantity"
-                noStyle
-                rules={[{ required: true, message: '请输入数量' }]}
-              >
-                <InputNumber
-                  min={1}
-                  max={1000}
-                  placeholder="自定义数量"
-                  style={{ width: '100%' }}
-                  onChange={handleQuantityInputChange}
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-        </Form.Item>
+                  {num}个
+                </Radio.Button>
+              ))}
+            </Radio.Group>
+          </Form.Item>
+          <Form.Item name="customQuantity" noStyle>
+            <InputNumber
+              min={1}
+              max={100}
+              style={{ 
+                width: 200,
+                height: '48px',
+                fontSize: '16px'
+              }}
+              addonAfter="个"
+              onChange={(value) => form.setFieldValue('quantity', value)}
+              placeholder="自定义数量"
+            />
+          </Form.Item>
+        </Space>
+      </Form.Item>
 
-        <Form.Item label="有效期" required>
-          <Row gutter={[16, 16]}>
-            <Col xs={24} sm={24} md={16}>
-              <Form.Item
-                name="durationRadio"
-                noStyle
-              >
-                <Radio.Group 
-                  buttonStyle="solid"
-                  onChange={handleDurationChange}
-                  style={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: '8px' }}
-                >
-                  {durationOptions.map(num => (
-                    <Radio.Button 
-                      key={num} 
-                      value={num}
-                      style={{ 
-                        minWidth: '80px', 
-                        textAlign: 'center',
-                        marginRight: 0,
-                        flexGrow: 1,
-                        flexBasis: 'calc(33.333% - 8px)'  // 每行3个按钮
-                      }}
-                    >
-                      {num}天
-                    </Radio.Button>
-                  ))}
-                </Radio.Group>
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={24} md={8}>
-              <Form.Item
-                name="duration"
-                noStyle
-                rules={[{ required: true, message: '请输入有效期' }]}
-              >
-                <InputNumber
-                  min={1}
-                  max={365}
-                  placeholder="自定义天数"
-                  style={{ width: '100%' }}
-                  onChange={handleDurationInputChange}
-                  addonAfter="天"
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-        </Form.Item>
+      <Form.Item
+        label={
+          <Space>
+            <FileTextOutlined style={{ color: '#2CE57B' }} />
+            <span style={{ fontSize: '16px' }}>备注信息</span>
+          </Space>
+        }
+        name="note"
+      >
+        <Input.TextArea
+          placeholder="可以附带产品名称、VIP内容等信息（可选）"
+          rows={4}
+          style={{ 
+            borderRadius: '8px',
+            fontSize: '14px'
+          }}
+        />
+      </Form.Item>
 
-        <Form.Item label="备注" name="note">
-          <TextArea 
-            rows={4} 
-            placeholder="请输入备注信息（选填）"
-            showCount
-            maxLength={200}
-          />
-        </Form.Item>
+      <Form.Item>
+        <Button
+          type="primary"
+          htmlType="submit"
+          loading={loading}
+          block
+          size="large"
+          icon={<RocketOutlined />}
+          style={{
+            height: '50px',
+            fontSize: '16px',
+            borderRadius: '8px'
+          }}
+        >
+          {t.generateButton}
+        </Button>
+      </Form.Item>
 
-        <Form.Item>
-          <Button 
-            type="primary" 
-            htmlType="submit" 
-            loading={loading} 
-            block
-            size="large"
-          >
-            生成
-          </Button>
-        </Form.Item>
-      </Form>
-    </Card>
+      <div style={{ marginTop: '24px', color: '#666' }}>
+        <div style={{ fontSize: '14px' }}>Key生成规则：</div>
+        <ul style={{ paddingLeft: '20px', marginTop: '8px' }}>
+          <li>时间标记：1-3650天（用于标记用户购买的时长）</li>
+          <li>单次生成数量：1-100个</li>
+          <li>备注信息：可以附带产品名称、VIP内容等，API调用时可获取此信息</li>
+        </ul>
+      </div>
+    </Form>
   );
 };
 

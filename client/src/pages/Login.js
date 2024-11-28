@@ -1,29 +1,60 @@
-import React from 'react';
-import { Form, Input, Button, Card, message } from 'antd';
-import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import React, { useState } from 'react';
+import { Form, Input, Button, Card, message, Switch, Space } from 'antd';
+import { UserOutlined, LockOutlined, GlobalOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import axios from '../utils/axios';
 import './Login.css';
+import { messages } from '../locales';
 
 const Login = () => {
   const navigate = useNavigate();
+  const [lang, setLang] = useState(localStorage.getItem('language') || 'zh');
+  const t = messages[lang].login;
 
   const onFinish = async (values) => {
     try {
       const response = await axios.post('/api/auth/login', values);
       if (response.data.success) {
         localStorage.setItem('token', response.data.token);
-        message.success('登录成功');
+        localStorage.setItem('userInfo', JSON.stringify(response.data.user));
+        message.success(t.loginSuccess);
         navigate('/');
       }
     } catch (error) {
-      message.error(error.response?.data?.message || '登录失败');
+      console.error('Login error:', error);
+      message.error(error.response?.data?.message || t.loginFailed);
     }
+  };
+
+  const handleLanguageChange = (checked) => {
+    const newLang = checked ? 'en' : 'zh';
+    setLang(newLang);
+    localStorage.setItem('language', newLang);
   };
 
   return (
     <div className="login-container">
-      <Card title="威少激活" className="login-card">
+      <Card 
+        title={
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span>{t.title}</span>
+            <Space>
+              <GlobalOutlined />
+              <Switch
+                checkedChildren="EN"
+                unCheckedChildren="中"
+                checked={lang === 'en'}
+                onChange={handleLanguageChange}
+              />
+            </Space>
+          </div>
+        } 
+        className="login-card"
+      >
         <Form
           name="login"
           onFinish={onFinish}
@@ -31,29 +62,29 @@ const Login = () => {
         >
           <Form.Item
             name="username"
-            rules={[{ required: true, message: '请输入用户名' }]}
+            rules={[{ required: true, message: t.usernamePlaceholder }]}
           >
             <Input 
               prefix={<UserOutlined />} 
-              placeholder="用户名" 
+              placeholder={t.usernamePlaceholder}
               size="large"
             />
           </Form.Item>
 
           <Form.Item
             name="password"
-            rules={[{ required: true, message: '请输入密码' }]}
+            rules={[{ required: true, message: t.passwordPlaceholder }]}
           >
             <Input.Password
               prefix={<LockOutlined />}
-              placeholder="密码"
+              placeholder={t.passwordPlaceholder}
               size="large"
             />
           </Form.Item>
 
           <Form.Item>
             <Button type="primary" htmlType="submit" block size="large">
-              登录
+              {t.loginButton}
             </Button>
           </Form.Item>
         </Form>
