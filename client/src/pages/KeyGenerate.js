@@ -7,7 +7,9 @@ import {
   CalendarOutlined, 
   NumberOutlined,
   FileTextOutlined,
-  RocketOutlined
+  RocketOutlined,
+  FieldTimeOutlined,
+  GiftOutlined
 } from '@ant-design/icons';
 import axios from '../utils/axios';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -21,13 +23,24 @@ const KeyGenerate = () => {
 
   const handleSubmit = async (values) => {
     try {
+      const submitData = {
+        count: values.quantity,
+        duration: values.duration,
+        bean: values.bean,
+        note: values.note
+      };
+
+      console.log('提交的数据:', submitData);
       setLoading(true);
-      const response = await axios.post('/api/keys', values);
+      const response = await axios.post('/api/keys', submitData);
+      console.log('服务器响应:', response.data);
+      
       if (response.data.success) {
         message.success(t.success);
         form.resetFields();
       }
     } catch (error) {
+      console.error('错误:', error);
       message.error(error.response?.data?.message || t.failed);
     } finally {
       setLoading(false);
@@ -35,7 +48,25 @@ const KeyGenerate = () => {
   };
 
   const handleDurationChange = (e) => {
-    form.setFieldValue('customDuration', e.target.value);
+    form.setFieldsValue({
+      customDuration: e.target.value,
+      duration: e.target.value
+    });
+  };
+
+  const handleCustomDurationChange = (value) => {
+    form.setFieldValue('duration', value);
+  };
+
+  const handleBeanChange = (e) => {
+    form.setFieldsValue({
+      customBean: e.target.value,
+      bean: e.target.value
+    });
+  };
+
+  const handleCustomBeanChange = (value) => {
+    form.setFieldValue('bean', value);
   };
 
   const handleQuantityChange = (e) => {
@@ -50,8 +81,10 @@ const KeyGenerate = () => {
       initialValues={{
         duration: 30,
         quantity: 1,
+        bean: 500,
         customDuration: 30,
-        customQuantity: 1
+        customQuantity: 1,
+        customBean: 500
       }}
       style={{
         background: 'linear-gradient(180deg, rgba(44, 229, 123, 0.05) 0%, rgba(255, 255, 255, 1) 25%)',
@@ -69,7 +102,7 @@ const KeyGenerate = () => {
         }
       >
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <Form.Item name="duration" noStyle>
+          <Form.Item name="duration" noStyle initialValue={30}>
             <Radio.Group 
               onChange={handleDurationChange}
               buttonStyle="solid"
@@ -80,44 +113,25 @@ const KeyGenerate = () => {
                 gap: '12px'
               }}
             >
-              <Radio.Button 
-                value={30}
-                style={{ 
-                  height: '48px', 
-                  lineHeight: '48px',
-                  padding: '0 24px',
-                  fontSize: '16px'
-                }}
-              >
-                30天
-              </Radio.Button>
-              <Radio.Button 
-                value={90}
-                style={{ 
-                  height: '48px', 
-                  lineHeight: '48px',
-                  padding: '0 24px',
-                  fontSize: '16px'
-                }}
-              >
-                90天
-              </Radio.Button>
-              <Radio.Button 
-                value={365}
-                style={{ 
-                  height: '48px', 
-                  lineHeight: '48px',
-                  padding: '0 24px',
-                  fontSize: '16px'
-                }}
-              >
-                365天
-              </Radio.Button>
+              {[0, 30, 90, 180, 365].map(num => (
+                <Radio.Button 
+                  key={num}
+                  value={num}
+                  style={{ 
+                    height: '48px', 
+                    lineHeight: '48px',
+                    padding: '0 24px',
+                    fontSize: '16px'
+                  }}
+                >
+                  {num}天
+                </Radio.Button>
+              ))}
             </Radio.Group>
           </Form.Item>
-          <Form.Item name="customDuration" noStyle>
+          <Form.Item name="customDuration" noStyle initialValue={30}>
             <InputNumber
-              min={1}
+              min={0}
               max={3650}
               style={{ 
                 width: 200,
@@ -125,8 +139,61 @@ const KeyGenerate = () => {
                 fontSize: '16px'
               }}
               addonAfter="天"
-              onChange={(value) => form.setFieldValue('duration', value)}
-              placeholder="自定义天数"
+              onChange={handleCustomDurationChange}
+              placeholder="自定义天数(0-3650)"
+            />
+          </Form.Item>
+        </Space>
+      </Form.Item>
+
+      <Form.Item
+        label={
+          <Space>
+            <GiftOutlined style={{ color: '#2CE57B' }} />
+            <span style={{ fontSize: '16px' }}>Bean数量</span>
+          </Space>
+        }
+      >
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <Form.Item name="bean" noStyle initialValue={500}>
+            <Radio.Group 
+              onChange={handleBeanChange}
+              buttonStyle="solid"
+              size="large"
+              style={{ 
+                display: 'flex', 
+                flexWrap: 'wrap', 
+                gap: '12px'
+              }}
+            >
+              {[0, 500, 5000, 50000].map(num => (
+                <Radio.Button 
+                  key={num}
+                  value={num}
+                  style={{ 
+                    height: '48px', 
+                    lineHeight: '48px',
+                    padding: '0 24px',
+                    fontSize: '16px'
+                  }}
+                >
+                  {num}
+                </Radio.Button>
+              ))}
+            </Radio.Group>
+          </Form.Item>
+          <Form.Item name="customBean" noStyle initialValue={500}>
+            <InputNumber
+              min={0}
+              max={999999}
+              style={{ 
+                width: 200,
+                height: '48px',
+                fontSize: '16px'
+              }}
+              addonAfter="Bean"
+              onChange={handleCustomBeanChange}
+              placeholder="自定义数量(0-999999)"
             />
           </Form.Item>
         </Space>

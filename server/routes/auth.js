@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 
-const MAX_LOGIN_ATTEMPTS = 3;
+const MAX_LOGIN_ATTEMPTS = 8;
 const LOCK_TIME = 24 * 60 * 60 * 1000; // 24小时
 
 router.post('/login', async (req, res) => {

@@ -14,8 +14,23 @@ const generateKey = (seed, index) => {
 // 生成新Key
 router.post('/', auth, async (req, res) => {
   try {
-    const { quantity = 1, duration = 30, note = '' } = req.body;
+    const { count = 1, duration, bean = 500, note } = req.body;
     
+    // 验证参数
+    if (duration < 0 || duration > 3650) {
+      return res.status(400).json({
+        success: false,
+        message: '时间标记范围为0-3650天'
+      });
+    }
+
+    if (bean < 0 || bean > 999999) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bean数量范围为0-999999'
+      });
+    }
+
     // 获取用户的设置
     const keySettings = await Setting.findOne({ 
       key: 'keySettings',
@@ -40,27 +55,35 @@ router.post('/', auth, async (req, res) => {
     }
     
     const keys = [];
-    const keyCount = parseInt(quantity);
-    
-    for (let i = 0; i < keyCount; i++) {
-      const keyString = generateKey(seed, i);
-      const finalKey = prefix ? `${prefix}_${keyString}` : keyString;
-      
-      keys.push({
-        userId: req.user._id, // 添加用户ID
-        key: finalKey,
-        duration: parseInt(duration),
-        quantity: 1,
+    for (let i = 0; i < count; i++) {
+      console.log('准备创建Key:', {
+        userId: req.user._id,
+        duration,
+        bean,
         note,
-        status: 'inactive'
+        quantity: 1
       });
+
+      const key = new Key({
+        userId: req.user._id,
+        key: generateKey(seed, i),
+        duration,
+        bean,
+        note,
+        status: 'inactive',
+        quantity: 1
+      });
+
+      console.log('Key对象:', key);
+
+      await key.save();
+      keys.push(key);
     }
-    
-    const savedKeys = await Key.insertMany(keys);
-    res.json({ 
-      success: true, 
-      data: savedKeys,
-      message: `成功生成 ${keyCount} 个Key`
+
+    res.json({
+      success: true,
+      message: `成功生成${count}个Key`,
+      data: keys
     });
   } catch (error) {
     console.error('生成Key错误:', error);
@@ -96,7 +119,8 @@ router.get('/', auth, async (req, res) => {
                 duration: 1,
                 status: 1,
                 note: 1,
-                createdAt: 1
+                createdAt: 1,
+                bean: 1
               }
             }
           ],
@@ -145,7 +169,7 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// 获取所有可用的有效期选项 - 移到验证接口之前
+// 获取所有可用的有效期选项 - 移到验证接口前
 router.get('/durations', auth, async (req, res) => {
   try {
     const durations = await Key.distinct('duration', { userId: req.user._id });
@@ -237,6 +261,7 @@ router.post('/verify', async (req, res) => {
       message: '验证成功',
       data: {
         duration: keyDoc.duration,
+        bean: keyDoc.bean,
         activatedAt: keyDoc.activatedAt,
         note: keyDoc.note
       }

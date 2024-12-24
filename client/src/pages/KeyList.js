@@ -105,6 +105,7 @@ const KeyList = () => {
     const exportData = dataToExport.map(item => ({
       'Key': item.key,
       '有效期(天)': item.duration,
+      'Bean数量': item.bean,
       '生成时间': formatDateTime(item.createdAt),
       '状态': item.status === 'active' ? t.active : t.inactive,
       '备注': item.note || ''
@@ -220,6 +221,16 @@ const KeyList = () => {
       responsive: ['sm']
     },
     {
+      title: 'Bean数量',
+      dataIndex: 'bean',
+      key: 'bean',
+      width: 150,
+      align: 'center',
+      render: (text) => (
+        <span style={{ whiteSpace: 'nowrap' }}>{text}</span>
+      )
+    },
+    {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
@@ -267,7 +278,7 @@ const KeyList = () => {
       width: '15%',
       ellipsis: true,
       responsive: ['lg']
-    }
+    },
   ];
 
   const tableProps = {

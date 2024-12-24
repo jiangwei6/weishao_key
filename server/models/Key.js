@@ -17,7 +17,8 @@ const keySchema = new mongoose.Schema({
   },
   quantity: {
     type: Number,
-    required: true
+    required: true,
+    default: 1
   },
   note: {
     type: String
@@ -33,6 +34,13 @@ const keySchema = new mongoose.Schema({
   },
   activatedAt: {
     type: Date
+  },
+  bean: {
+    type: Number,
+    required: true,
+    min: 0,
+    max: 999999,
+    default: 500
   }
 });
 

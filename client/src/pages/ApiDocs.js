@@ -84,31 +84,20 @@ const ApiDocs = () => {
   "message": "验证成功",
   "data": {
     "duration": 30,
+    "bean": 500,
     "activatedAt": "2024-03-20T10:30:00.000Z",
     "note": "[2024-03-20 18:30:00] 激活备注信息"
   }
-}
-
-{
-  "success": false,
-  "message": "Key不存在/已使用/API已禁用等",
-  "data": null
-}`
-      : 
+}` : 
       `{
   "success": true,
   "message": "Verification successful",
   "data": {
     "duration": 30,
+    "bean": 500,
     "activatedAt": "2024-03-20T10:30:00.000Z",
     "note": "[2024-03-20 18:30:00] Activation note"
   }
-}
-
-{
-  "success": false,
-  "message": "Key not found/already used/API disabled",
-  "data": null
 }`;
   };
 
