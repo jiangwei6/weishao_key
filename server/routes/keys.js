@@ -7,8 +7,12 @@ const Setting = require('../models/Setting');
 
 // 生成Key
 const generateKey = (seed, index) => {
-  const data = `${seed}_${index}_${Date.now()}`;
-  return crypto.createHash('sha256').update(data).digest('hex').substring(0, 32);
+  const timestamp = Date.now();
+  const data = `${seed}_${index}_${timestamp}`;
+  console.log('生成Key的参数:', { seed, index, timestamp, data });
+  const hash = crypto.createHash('sha256').update(data).digest('hex').substring(0, 32);
+  console.log('生成的hash:', hash);
+  return hash;
 };
 
 // 生成新Key
@@ -35,17 +39,19 @@ router.post('/', auth, async (req, res) => {
     const keySettings = await Setting.findOne({ 
       key: 'keySettings',
       userId: req.user._id 
-    });
+    }).lean();  // 使用lean()获取纯JavaScript对象
     
-    if (!keySettings) {
+    console.log('用户设置:', keySettings); // 添加日志
+
+    if (!keySettings || !keySettings.value) {
       return res.status(400).json({ 
         success: false, 
         message: '请先在设置中配置Key生成规则' 
       });
     }
 
-    const seed = keySettings.value.seed;
-    const prefix = keySettings.value.prefix;
+    const { seed = '', prefix = '' } = keySettings.value;
+    console.log('解析后的设置:', { seed, prefix }); // 添加日志
     
     if (!seed) {
       return res.status(400).json({ 
@@ -56,17 +62,16 @@ router.post('/', auth, async (req, res) => {
     
     const keys = [];
     for (let i = 0; i < count; i++) {
-      console.log('准备创建Key:', {
-        userId: req.user._id,
-        duration,
-        bean,
-        note,
-        quantity: 1
-      });
-
+      const keyString = generateKey(seed, i);
+      console.log(`第${i + 1}个基础key:`, keyString);
+      
+      // 添加前缀（确保前缀存在且不为空）
+      const finalKey = prefix && prefix.trim() ? `${prefix.trim()}_${keyString}` : keyString;
+      console.log(`第${i + 1}个完整key:`, finalKey);
+      
       const key = new Key({
         userId: req.user._id,
-        key: generateKey(seed, i),
+        key: finalKey,
         duration,
         bean,
         note,
@@ -74,11 +79,11 @@ router.post('/', auth, async (req, res) => {
         quantity: 1
       });
 
-      console.log('Key对象:', key);
-
       await key.save();
       keys.push(key);
     }
+
+    console.log('生成的所有keys:', keys.map(k => k.key));
 
     res.json({
       success: true,

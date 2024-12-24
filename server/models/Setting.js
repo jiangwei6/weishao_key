@@ -16,20 +16,10 @@ const settingSchema = new mongoose.Schema({
   }
 });
 
-// 复合唯一索引
+// 添加复合索引
 settingSchema.index({ userId: 1, key: 1 }, { unique: true });
 
-// 在模型创建之前删除旧索引
-mongoose.connection.once('open', async () => {
-  try {
-    await mongoose.connection.collection('settings').dropIndex('key_1');
-  } catch (error) {
-    // 如果索引不存在，忽略错误
-    console.log('No old index to drop');
-  }
-});
-
-// 添加默认设置
+// 添加默认设置方法
 settingSchema.statics.getDefaultSettings = function() {
   return {
     apiSettings: {

@@ -34,7 +34,7 @@ router.get('/', auth, async (req, res) => {
       data: response
     });
   } catch (error) {
-    console.error('获取设置错误:', error);
+    console.error('获取设置错���:', error);
     res.status(500).json({
       success: false,
       message: error.message || '获取设置失败'
@@ -141,6 +141,52 @@ router.put('/', auth, async (req, res) => {
     res.status(500).json({ 
       success: false, 
       message: error.message || '更新设置失败' 
+    });
+  }
+});
+
+router.put('/keySettings', auth, async (req, res) => {
+  try {
+    const { seed, prefix } = req.body;
+    
+    console.log('保存设置:', { seed, prefix }); // 添加日志
+
+    let setting = await Setting.findOne({
+      userId: req.user._id,
+      key: 'keySettings'
+    });
+
+    if (!setting) {
+      setting = new Setting({
+        userId: req.user._id,
+        key: 'keySettings',
+        value: {
+          seed: seed || 'default_seed_' + Date.now(),
+          prefix: prefix || ''
+        }
+      });
+    } else {
+      setting.value = {
+        ...setting.value,
+        seed: seed || setting.value.seed,
+        prefix: prefix || setting.value.prefix
+      };
+    }
+
+    console.log('保存前的设置:', setting); // 添加日志
+    await setting.save();
+    console.log('保存后的设置:', setting); // 添加日志
+
+    res.json({
+      success: true,
+      message: '设置已更新',
+      data: setting
+    });
+  } catch (error) {
+    console.error('保存设置错误:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || '保存设置失败'
     });
   }
 });
