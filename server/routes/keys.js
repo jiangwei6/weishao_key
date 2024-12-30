@@ -193,6 +193,8 @@ router.get('/durations', auth, async (req, res) => {
 // 验证Key接口
 router.post('/verify', async (req, res) => {
   try {
+    console.log('1. 收到请求:', req.body);  // 打印请求数据
+
     // 检查 Authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -210,11 +212,15 @@ router.post('/verify', async (req, res) => {
       });
     }
 
-    // 验证 token 并获取用户设置
     const { key, note } = req.body;
     
-    // 查找key并检查其所属用户的API设置
+    // 查找key
     const keyDoc = await Key.findOne({ key }).populate('userId');
+    console.log('2. 查询到的Key:', {
+      key: keyDoc?.key,
+      currentNote: keyDoc?.note  // 当前的备注
+    });
+
     if (!keyDoc) {
       return res.status(404).json({
         success: false,
@@ -251,27 +257,36 @@ router.post('/verify', async (req, res) => {
       });
     }
 
-    // 激活Key
-    const now = new Date();
+    // 准备新备注
+    const newNote = `[${new Date().toLocaleString()}] ${note || '已激活'}`;
+    console.log('3. 新备注:', newNote);
+
+    // 拼接备注
+    const finalNote = keyDoc.note 
+      ? `${keyDoc.note}\n${newNote}`
+      : newNote;
+    console.log('4. 拼接后的备注:', finalNote);
+
+    // 更新并保存
     keyDoc.status = 'active';
-    keyDoc.activatedAt = now;
-    keyDoc.note = note ? 
-      `[${new Date().toLocaleString()}] ${note}` : 
-      `[${new Date().toLocaleString()}] 已激活`;
-    
-    await keyDoc.save();
+    keyDoc.activatedAt = new Date();
+    keyDoc.note = finalNote;
+
+    const savedKey = await keyDoc.save();
+    console.log('5. 保存后的备注:', savedKey.note);
 
     res.json({
       success: true,
       message: '验证成功',
       data: {
-        duration: keyDoc.duration,
-        bean: keyDoc.bean,
-        activatedAt: keyDoc.activatedAt,
-        note: keyDoc.note
+        duration: savedKey.duration,
+        bean: savedKey.bean,
+        activatedAt: savedKey.activatedAt,
+        note: savedKey.note
       }
     });
   } catch (error) {
+    console.error('验证失败:', error);
     res.status(500).json({
       success: false,
       message: error.message || '验证失败'
@@ -282,6 +297,8 @@ router.post('/verify', async (req, res) => {
 // 删除Key
 router.delete('/:id', auth, async (req, res) => {
   try {
+    console.log('删除Key:', req.params.id); // 添加日志
+
     const key = await Key.findOne({ 
       _id: req.params.id,
       userId: req.user._id // 确保只能删除自己的Key
@@ -294,15 +311,123 @@ router.delete('/:id', auth, async (req, res) => {
       });
     }
 
-    await key.remove();
+    // 使用 deleteOne 而不是 remove
+    await Key.deleteOne({ _id: req.params.id });
+    
+    console.log('Key删除成功'); // 添加日志
+
     res.json({
       success: true,
       message: '删除成功'
     });
   } catch (error) {
+    console.error('删除Key错误:', error);
     res.status(500).json({
       success: false,
       message: error.message || '删除失败'
+    });
+  }
+});
+
+// 批量删除Keys
+router.post('/batch-delete', auth, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: '请选择要删除的Key'
+      });
+    }
+
+    console.log('批量删除Keys:', ids); // 添加日志
+
+    const result = await Key.deleteMany({
+      _id: { $in: ids },
+      userId: req.user._id // 确保只能删除自己的Key
+    });
+
+    console.log('批量删除结果:', result); // 添加日志
+
+    res.json({
+      success: true,
+      message: `成功删除${result.deletedCount}个Key`
+    });
+  } catch (error) {
+    console.error('批量删除错误:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || '批量删除失败'
+    });
+  }
+});
+
+// 添加还原功能 - 删除所有Keys
+router.post('/reset-all', auth, async (req, res) => {
+  try {
+    const { confirmText } = req.body;
+    
+    if (confirmText !== 'delete') {
+      return res.status(400).json({
+        success: false,
+        message: '确认文本不正确'
+      });
+    }
+
+    console.log('开始还原 - 删除所有Keys'); // 添加日志
+
+    const result = await Key.deleteMany({
+      userId: req.user._id
+    });
+
+    console.log('还原结果:', result); // 添加日志
+
+    res.json({
+      success: true,
+      message: `成功删除${result.deletedCount}个Key`
+    });
+  } catch (error) {
+    console.error('还原错误:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || '还原失败'
+    });
+  }
+});
+
+// 更新Key备注
+router.put('/:id/note', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { note } = req.body;
+
+    const key = await Key.findOne({
+      _id: id,
+      userId: req.user._id
+    });
+
+    if (!key) {
+      return res.status(404).json({
+        success: false,
+        message: 'Key不存在'
+      });
+    }
+
+    // 直接设置新备注，不添加时间戳
+    key.note = note;
+    await key.save();
+
+    res.json({
+      success: true,
+      message: '备注更新成功',
+      data: key
+    });
+  } catch (error) {
+    console.error('更新备注错误:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || '更新备注失败'
     });
   }
 });

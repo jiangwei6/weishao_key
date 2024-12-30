@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Card, Table, Button, Modal, Form, Input, 
-  Select, message, Space, Popconfirm, Tag 
+  Select, message, Space, Popconfirm, Tag, DatePicker 
 } from 'antd';
 import axios from '../utils/axios';
 import { ReloadOutlined } from '@ant-design/icons';
@@ -69,17 +69,27 @@ const UserManagement = () => {
   // 处理用户创建/编辑
   const handleSubmit = async (values) => {
     try {
+      console.log('提交的表单数据:', values);
+      const data = {
+        ...values,
+        expiresAt: values.expiresAt ? values.expiresAt.toISOString() : null
+      };
+      console.log('发送到服务器的数据:', data);
+
       if (editingUser) {
-        await axios.put(`/api/users/${editingUser._id}`, values);
+        const response = await axios.put(`/api/users/${editingUser._id}`, data);
+        console.log('更新响应:', response.data);
         message.success('用户更新成功');
       } else {
-        await axios.post('/api/users', values);
+        const response = await axios.post('/api/users', data);
+        console.log('创建响应:', response.data);
         message.success('用户创建成功');
       }
       setModalVisible(false);
       form.resetFields();
       fetchUsers();
     } catch (error) {
+      console.error('提交失败:', error);
       message.error(error.response?.data?.message || '操作失败');
     }
   };
@@ -142,11 +152,20 @@ const UserManagement = () => {
       }
     },
     {
+      title: '到期时间',
+      dataIndex: 'expiresAt',
+      key: 'expiresAt',
+      render: (text, record) => {
+        if (record.role !== 'user') return '-';
+        return text ? formatDateTime(text) : '永久';
+      }
+    },
+    {
       title: '状态',
       key: 'status',
       render: (_, record) => (
-        <Tag color={record.isLocked ? 'red' : 'green'}>
-          {record.isLocked ? '已锁定' : '正常'}
+        <Tag color={record.status === 'active' ? 'green' : 'red'}>
+          {record.status === 'active' ? '正常' : '已锁定'}
         </Tag>
       )
     },
@@ -157,20 +176,32 @@ const UserManagement = () => {
       render: (date) => formatDateTime(date)
     },
     {
-      title: 'API Token',
-      key: 'apiToken',
-      render: (_, record) => (
-        record.apiToken ? (
-          <Button
-            type="link"
-            onClick={() => {
-              navigator.clipboard.writeText(record.apiToken);
-              message.success('Token已复制');
-            }}
-          >
-            复制Token
-          </Button>
-        ) : '无'
+      title: '备注',
+      dataIndex: 'note',
+      key: 'note',
+      width: 200,
+      render: (text, record) => (
+        <Input.TextArea
+          defaultValue={text}
+          autoSize={{ minRows: 1, maxRows: 3 }}
+          onBlur={async (e) => {
+            const newNote = e.target.value;
+            if (newNote !== text) {
+              try {
+                await axios.put(`/api/users/${record._id}`, {
+                  ...record,
+                  note: newNote
+                });
+                message.success('备注更新成功');
+                fetchUsers();  // 刷新列表
+              } catch (error) {
+                message.error('备注更新失败');
+                e.target.value = text;  // 恢复原值
+              }
+            }
+          }}
+          placeholder="点击添加备注"
+        />
       )
     },
     {
@@ -294,6 +325,38 @@ const UserManagement = () => {
               <Option value="user">普通用户</Option>
               <Option value="admin">管理员</Option>
             </Select>
+          </Form.Item>
+
+          <Form.Item
+            noStyle
+            shouldUpdate={(prevValues, currentValues) => prevValues.role !== currentValues.role}
+          >
+            {({ getFieldValue }) => 
+              getFieldValue('role') === 'user' && (
+                <Form.Item
+                  name="expiresAt"
+                  label="到期时间"
+                  extra="不设置则永久有效"
+                >
+                  <DatePicker 
+                    showTime 
+                    style={{ width: '100%' }}
+                    placeholder="请选择到期时间"
+                    format="YYYY-MM-DD HH:mm:ss"
+                  />
+                </Form.Item>
+              )
+            }
+          </Form.Item>
+
+          <Form.Item
+            name="note"
+            label="备注"
+          >
+            <Input.TextArea
+              placeholder="请输入备注信息"
+              autoSize={{ minRows: 2, maxRows: 6 }}
+            />
           </Form.Item>
 
           <Form.Item>

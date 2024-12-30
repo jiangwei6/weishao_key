@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Table, Card, Button, message, Popconfirm, Space, Input, 
-  Statistic, Row, Col, Dropdown, Menu, Tag
+  Statistic, Row, Col, Dropdown, Menu, Tag, Modal, Form, Checkbox
 } from 'antd';
 import { 
   DeleteOutlined, CopyOutlined, DownloadOutlined,
   ReloadOutlined, FileExcelOutlined, FileTextOutlined,
-  CheckCircleOutlined, KeyOutlined, MoreOutlined
+  CheckCircleOutlined, KeyOutlined, MoreOutlined, EditOutlined
 } from '@ant-design/icons';
 import axios from '../utils/axios';
 import * as XLSX from 'xlsx';
@@ -22,6 +22,9 @@ const KeyList = () => {
   const [searchText, setSearchText] = useState('');
   const [stats, setStats] = useState({});
   const [statusFilter, setStatusFilter] = useState(null);
+  const [editingNote, setEditingNote] = useState(null);
+  const [noteModalVisible, setNoteModalVisible] = useState(false);
+  const [noteForm] = Form.useForm();
   const { lang } = useLanguage();
   const t = messages[lang].keyList;
   const commonT = messages[lang].common.operation;
@@ -67,7 +70,8 @@ const KeyList = () => {
       message.success('删除成功');
       fetchKeys();
     } catch (error) {
-      message.error('删除失败');
+      console.error('删除失败:', error);
+      message.error(error.response?.data?.message || '删除失败');
     }
   };
 
@@ -80,13 +84,21 @@ const KeyList = () => {
   };
 
   const handleBatchDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要删除的Key');
+      return;
+    }
+
     try {
-      await Promise.all(selectedRowKeys.map(id => axios.delete(`/api/keys/${id}`)));
-      message.success('批量删除成功');
+      await axios.post('/api/keys/batch-delete', {
+        ids: selectedRowKeys
+      });
+      message.success(`成功删除${selectedRowKeys.length}个Key`);
       setSelectedRowKeys([]);
       fetchKeys();
     } catch (error) {
-      message.error('批量删除失败');
+      console.error('批量删除失败:', error);
+      message.error(error.response?.data?.message || '批量删除失败');
     }
   };
 
@@ -277,7 +289,44 @@ const KeyList = () => {
       key: 'note',
       width: '15%',
       ellipsis: true,
-      responsive: ['lg']
+      responsive: ['lg'],
+      render: (text, record) => (
+        <div
+          style={{ 
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            maxWidth: '500px',
+            position: 'relative',
+            padding: '4px 24px 4px 4px'
+          }}
+          onClick={() => {
+            setEditingNote(record);
+            noteForm.setFieldValue('note', record.note || '');
+            setNoteModalVisible(true);
+          }}
+        >
+          <span style={{ 
+            flex: 1, 
+            overflow: 'hidden', 
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
+          }}>
+            {text || '无备注'}
+          </span>
+          <EditOutlined 
+            style={{ 
+              position: 'absolute',
+              right: 4,
+              opacity: 0,
+              color: '#1890ff',
+              fontSize: '14px'
+            }}
+            className="edit-icon"
+          />
+        </div>
+      )
     },
   ];
 
@@ -392,6 +441,21 @@ const KeyList = () => {
       </Menu.Item>
     </Menu>
   );
+
+  // 处理备注编辑
+  const handleNoteEdit = async (values) => {
+    try {
+      await axios.put(`/api/keys/${editingNote._id}/note`, {
+        note: values.note
+      });
+      message.success('备注更新成功');
+      setNoteModalVisible(false);
+      fetchKeys();
+    } catch (error) {
+      console.error('更新备注失败:', error);
+      message.error(error.response?.data?.message || '更新备注失败');
+    }
+  };
 
   return (
     <>
@@ -531,6 +595,52 @@ const KeyList = () => {
         <Table {...tableProps} />
       </Card>
 
+      {/* 添加备注编辑弹窗 */}
+      <Modal
+        title="编辑备注"
+        open={noteModalVisible}
+        onCancel={() => {
+          setNoteModalVisible(false);
+          setEditingNote(null);
+          noteForm.resetFields();
+        }}
+        footer={null}
+      >
+        <Form
+          form={noteForm}
+          onFinish={handleNoteEdit}
+          layout="vertical"
+        >
+          <Form.Item
+            name="note"
+            label="备注信息"
+          >
+            <Input.TextArea
+              rows={4}
+              placeholder="请输入备注信息"
+              maxLength={200}
+              showCount
+            />
+          </Form.Item>
+          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+            <Space>
+              <Button 
+                onClick={() => {
+                  setNoteModalVisible(false);
+                  setEditingNote(null);
+                  noteForm.resetFields();
+                }}
+              >
+                取消
+              </Button>
+              <Button type="primary" htmlType="submit">
+                保存
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
       <style jsx>{`
         @media screen and (max-width: 768px) {
           .desktop-operations {
@@ -547,6 +657,12 @@ const KeyList = () => {
           .mobile-operations {
             display: none;
           }
+        }
+      `}</style>
+
+      <style jsx global>{`
+        .ant-table-row:hover .edit-icon {
+          opacity: 1 !important;
         }
       `}</style>
     </>

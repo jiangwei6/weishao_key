@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Button, message, Input, Alert, Switch } from 'antd';
+import { Card, Form, Button, message, Input, Alert, Switch, Modal, Space } from 'antd';
 import axios from '../utils/axios';
 import { useLanguage } from '../contexts/LanguageContext';
 import { messages } from '../locales';
+import { DeleteOutlined } from '@ant-design/icons';
 
 const Settings = () => {
   const [form] = Form.useForm();
@@ -13,6 +14,9 @@ const Settings = () => {
   const { lang, toggleLanguage } = useLanguage();
   const t = messages[lang].settings;
   const commonT = messages[lang].common.operation;
+  const [resetModalVisible, setResetModalVisible] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
 
   useEffect(() => {
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
@@ -117,6 +121,32 @@ const Settings = () => {
     }
   };
 
+  // 处理还原
+  const handleReset = async () => {
+    if (confirmText !== 'delete') {
+      message.error('请输入正确的确认文本');
+      return;
+    }
+
+    try {
+      setResetLoading(true);
+      const response = await axios.post('/api/keys/reset-all', {
+        confirmText
+      });
+
+      if (response.data.success) {
+        message.success(response.data.message);
+        setResetModalVisible(false);
+        setConfirmText('');
+      }
+    } catch (error) {
+      console.error('还原错误:', error);
+      message.error(error.response?.data?.message || '还原失败');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   return (
     <div>
       <Card style={{ marginBottom: 24 }}>
@@ -202,6 +232,68 @@ const Settings = () => {
           )}
         </Form>
       </Card>
+
+      <Card 
+        title={
+          <span style={{ 
+            fontSize: '14px',
+            display: 'flex',
+            alignItems: 'center'
+          }}>清空Key</span>
+        } 
+        style={{ marginTop: '20px' }}
+        headStyle={{ 
+          padding: '8px 16px',
+          textAlign: 'left'
+        }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Alert
+            message="警告"
+            description="此操作将删除所有Key记录，请谨慎操作！"
+            type="warning"
+            showIcon
+          />
+          <Button 
+            danger
+            type="primary"
+            icon={<DeleteOutlined />}
+            onClick={() => setResetModalVisible(true)}
+          >
+            清空Key
+          </Button>
+        </Space>
+      </Card>
+
+      <Modal
+        title="确认清空"
+        open={resetModalVisible}
+        onOk={handleReset}
+        onCancel={() => {
+          setResetModalVisible(false);
+          setConfirmText('');
+        }}
+        confirmLoading={resetLoading}
+        okButtonProps={{ 
+          danger: true,
+          disabled: confirmText !== 'delete'
+        }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Alert
+            message="此操作不可恢复"
+            description="清空后将删除所有Key记录，请输入 delete 确认操作。"
+            type="warning"
+            showIcon
+          />
+          <Input
+            placeholder="请输入 delete 确认"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            style={{ marginTop: '16px' }}
+          />
+        </Space>
+      </Modal>
     </div>
   );
 };

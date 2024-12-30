@@ -19,41 +19,11 @@ const isAdmin = (req, res, next) => {
 // 获取用户列表（仅管理员）
 router.get('/', auth, isAdmin, async (req, res) => {
   try {
-    // 添加缓存控制头
-    res.set('Cache-Control', 'private, max-age=300'); // 5分钟缓存
-
-    // 使用聚合查询优化性能
-    const users = await User.aggregate([
-      {
-        $lookup: {
-          from: 'settings',
-          let: { userId: '$_id' },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ['$userId', '$$userId'] },
-                    { $eq: ['$key', 'apiSettings'] }
-                  ]
-                }
-              }
-            }
-          ],
-          as: 'apiSettings'
-        }
-      },
-      {
-        $project: {
-          username: 1,
-          role: 1,
-          isLocked: 1,
-          loginAttempts: 1,
-          createdAt: 1,
-          apiToken: { $arrayElemAt: ['$apiSettings.value.token', 0] }
-        }
-      }
-    ]);
+    console.log('正在获取用户列表...');
+    // 不要使用字段筛选，获取所有字段
+    const users = await User.find();
+    
+    console.log('获取到的用户列表:', users);  // 添加日志
 
     res.json({
       success: true,
@@ -71,13 +41,14 @@ router.get('/', auth, isAdmin, async (req, res) => {
 // 创建新用户（仅管理员）
 router.post('/', auth, isAdmin, async (req, res) => {
   try {
-    const { username, password, role } = req.body;
+    const { username, password, role, expiresAt } = req.body;
     
     // 创建用户
     const user = new User({
       username,
       password,
-      role
+      role,
+      expiresAt: expiresAt || null
     });
 
     await user.save();
@@ -136,29 +107,28 @@ router.post('/', auth, isAdmin, async (req, res) => {
 // 更新用户（仅管理员）
 router.put('/:id', auth, isAdmin, async (req, res) => {
   try {
-    const { password, role, isLocked } = req.body;
-    const updates = {};
-
-    if (password) updates.password = password;
-    if (role) updates.role = role;
-    if (typeof isLocked === 'boolean') {
-      updates.isLocked = isLocked;
-      if (!isLocked) {
-        updates.loginAttempts = 0;
-        updates.lockUntil = null;
-      }
+    const { expiresAt, ...updateData } = req.body;
+    
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: '用户不存在' });
     }
 
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      updates,
-      { new: true }
-    ).select('-password');
+    // 更新到期时间
+    user.expiresAt = expiresAt || null;
+    
+    // 如果已过期，则锁定用户
+    if (user.expiresAt && new Date() > new Date(user.expiresAt)) {
+      user.status = 'locked';
+    } else {
+      user.status = 'active';
+    }
 
-    res.json({
-      success: true,
-      data: user
-    });
+    // 更新其他字段
+    Object.assign(user, updateData);
+    
+    await user.save();
+    res.json({ success: true, data: user });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -208,6 +178,27 @@ router.put('/:id/password', auth, isAdmin, async (req, res) => {
       success: false,
       message: error.message || '修改密码失败'
     });
+  }
+});
+
+// 在登录时检查用户是否过期
+router.post('/login', async (req, res) => {
+  try {
+    const user = await User.findOne({ username });
+    
+    // 检查用户是否过期
+    if (user.expiresAt && new Date() > new Date(user.expiresAt)) {
+      user.status = 'locked';
+      await user.save();
+      return res.status(403).json({
+        success: false,
+        message: '账户已过期，请联系管理员'
+      });
+    }
+
+    // ... 其他登录逻辑 ...
+  } catch (error) {
+    // ... 错误处理 ...
   }
 });
 
