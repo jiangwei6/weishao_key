@@ -4,6 +4,7 @@ const User = require('../models/User');
 const Setting = require('../models/Setting');
 const auth = require('../middleware/auth');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 
 // 检查是否是管理员的中间件
 const isAdmin = (req, res, next) => {
@@ -43,10 +44,13 @@ router.post('/', auth, isAdmin, async (req, res) => {
   try {
     const { username, password, role, expiresAt } = req.body;
     
+    // 创建用户前加密密码
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
     // 创建用户
     const user = new User({
       username,
-      password,
+      password: hashedPassword,  // 使用加密后的密码
       role,
       expiresAt: expiresAt || null
     });
