@@ -40,9 +40,20 @@ router.post('/login', async (req, res) => {
         }
       });
     } else {
-      // 使用 bcrypt 比较密码
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) {
+      // 先尝试直接比较（旧方案）
+      let isValidPassword = password === user.password;
+      
+      if (!isValidPassword) {
+        // 如果旧方案失败，尝试 bcrypt 比较（新方案）
+        try {
+          isValidPassword = await bcrypt.compare(password, user.password);
+        } catch (err) {
+          // 如果 bcrypt 比较出错，说明不是 bcrypt 格式，继续使用旧方案的结果
+          console.log('bcrypt compare error:', err);
+        }
+      }
+
+      if (!isValidPassword) {
         user.loginAttempts += 1;
         console.log('Login attempts:', user.loginAttempts);
         
@@ -124,6 +135,37 @@ router.put('/change-password', auth, async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || '密码修改失败'
+    });
+  }
+});
+
+// 添加一个临时的重置管理员密码路由
+router.post('/reset-admin', async (req, res) => {
+  try {
+    const adminUser = await User.findOne({ role: 'admin' });
+    if (!adminUser) {
+      return res.status(404).json({
+        success: false,
+        message: '管理员账户不存在'
+      });
+    }
+
+    // 设置新密码并加密
+    const newPassword = '51885188';  // 这里设置临时密码
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    adminUser.password = hashedPassword;
+    await adminUser.save();
+
+    res.json({
+      success: true,
+      message: '管理员密码已重置',
+      username: adminUser.username,
+      password: newPassword
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message || '重置失败'
     });
   }
 });
