@@ -113,8 +113,28 @@ router.put('/change-password', auth, async (req, res) => {
 
     const { oldPassword, newPassword } = req.body;
     
-    // 使用 bcrypt 比较旧密码
-    const isMatch = await bcrypt.compare(oldPassword, req.user.password);
+    // 重新获取最新的用户信息
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: '用户不存在'
+      });
+    }
+
+    // 先尝试直接比较（旧方案）
+    let isMatch = oldPassword === user.password;
+    
+    if (!isMatch) {
+      // 如果旧方案失败，尝试 bcrypt 比较（新方案）
+      try {
+        isMatch = await bcrypt.compare(oldPassword, user.password);
+      } catch (err) {
+        // 如果 bcrypt 比较出错，说明不是 bcrypt 格式，继续使用旧方案的结果
+        console.log('bcrypt compare error:', err);
+      }
+    }
+
     if (!isMatch) {
       return res.status(400).json({
         success: false,
@@ -122,16 +142,16 @@ router.put('/change-password', auth, async (req, res) => {
       });
     }
 
-    // 使用 bcrypt 加密新密码
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    req.user.password = hashedPassword;
-    await req.user.save();
+    // 直接设置新密码，不进行加密
+    user.password = newPassword;
+    await user.save();
 
     res.json({
       success: true,
       message: '密码修改成功'
     });
   } catch (error) {
+    console.error('修改密码错误:', error);
     res.status(500).json({
       success: false,
       message: error.message || '密码修改失败'

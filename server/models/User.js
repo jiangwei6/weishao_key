@@ -42,11 +42,14 @@ userSchema.pre('save', function(next) {
   next();
 });
 
+// 注释掉自动加密的中间件
+/*
 userSchema.pre('save', async function(next) {
   if (this.isModified('password')) {
     this.password = await bcrypt.hash(this.password, 10);
   }
   next();
 });
+*/
 
 module.exports = mongoose.model('User', userSchema); 

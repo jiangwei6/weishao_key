@@ -170,7 +170,9 @@ router.put('/:id/password', auth, isAdmin, async (req, res) => {
       });
     }
 
-    user.password = password;
+    // 使用 bcrypt 加密新密码
+    const hashedPassword = await bcrypt.hash(password, 10);
+    user.password = hashedPassword;  // 使用加密后的密码
     await user.save();
 
     res.json({
